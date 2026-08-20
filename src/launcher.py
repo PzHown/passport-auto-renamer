@@ -6,6 +6,10 @@ import tempfile
 import traceback
 from pathlib import Path
 
+# Set this before importing the application/Paddle stack so oneDNN/MKLDNN is
+# disabled consistently in the packaged Windows executable.
+os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
+
 from passport_auto_renamer.app import main
 
 
@@ -23,7 +27,7 @@ def _write_self_test_log(text: str) -> None:
 
 
 def _self_test() -> int:
-    """Smoke-test the frozen application without opening the UI."""
+    """Smoke-test imports and OCR initialization without processing an image."""
     try:
         import paddle  # noqa: F401
         import paddleocr  # noqa: F401
