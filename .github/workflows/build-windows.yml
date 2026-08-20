@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - installer-bundled-models
+      - fix-pyinstaller-launcher
     paths:
       - '.github/workflows/build-windows.yml'
       - 'src/**'
@@ -66,6 +66,20 @@ jobs:
           if (-not (Test-Path $det)) { throw "Bundled detection model not found: $det" }
           if (-not (Test-Path $rec)) { throw "Bundled recognition model not found: $rec" }
           Get-Item $exe | Format-List FullName,Length,LastWriteTime
+
+      - name: Smoke-test packaged EXE
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/PassportAutoRenamer/PassportAutoRenamer.exe').Path
+          $proc = Start-Process -FilePath $exe -ArgumentList '--self-test' -PassThru
+          if (-not $proc.WaitForExit(180000)) {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            throw 'Packaged EXE self-test timed out after 180 seconds.'
+          }
+          if ($proc.ExitCode -ne 0) {
+            throw "Packaged EXE self-test failed with exit code $($proc.ExitCode)."
+          }
+          Write-Host 'Packaged EXE self-test passed.'
 
       - name: Install Inno Setup
         shell: pwsh
