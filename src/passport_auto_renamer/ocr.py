@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
+
+# Disable PaddleX/Paddle oneDNN (MKLDNN) before PaddleOCR/Paddle is imported.
+# This avoids CPU runtime failures seen on some Windows systems while keeping
+# the application fully local/offline.
+os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 
 from .extract import OcrItem
 
@@ -38,6 +44,7 @@ class PaddleOcrEngine:
         kwargs: dict[str, Any] = {
             "lang": "ch",
             "device": "cpu",
+            "enable_mkldnn": False,
             "use_doc_orientation_classify": False,
             "use_doc_unwarping": False,
             "use_textline_orientation": False,
