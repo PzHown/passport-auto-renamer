@@ -26,20 +26,38 @@ def _write_self_test_log(text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _load_font(size: int):
+    from PIL import ImageFont
+
+    candidates = [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\msyhbd.ttc",
+        r"C:\Windows\Fonts\simsun.ttc",
+        r"C:\Windows\Fonts\arial.ttf",
+    ]
+    for font_path in candidates:
+        try:
+            return ImageFont.truetype(font_path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
 def _create_mock_image(path: Path) -> None:
-    """Create a synthetic image in a temporary directory for CI OCR testing."""
-    from PIL import Image, ImageDraw, ImageFont
+    """Create a synthetic Chinese/English passport-like image for CI OCR testing."""
+    from PIL import Image, ImageDraw
 
-    image = Image.new("RGB", (1200, 700), "white")
+    image = Image.new("RGB", (1400, 900), "white")
     draw = ImageDraw.Draw(image)
-    try:
-        font = ImageFont.truetype("arial.ttf", 64)
-    except OSError:
-        font = ImageFont.load_default()
+    title_font = _load_font(54)
+    body_font = _load_font(64)
+    mrz_font = _load_font(42)
 
-    draw.text((80, 120), "PASSPORT MOCK TEST", fill="black", font=font)
-    draw.text((80, 260), "NAME: ZHANG SAN", fill="black", font=font)
-    draw.text((80, 400), "P<CHNZHANG<<SAN<<<<<<<<<<<<<<<<<<<<", fill="black", font=font)
+    draw.text((80, 80), "护照 OCR MOCK 测试", fill="black", font=title_font)
+    draw.text((80, 210), "姓名：张三", fill="black", font=body_font)
+    draw.text((80, 340), "NAME: ZHANG SAN", fill="black", font=body_font)
+    draw.text((80, 520), "P<CHNZHANG<<SAN<<<<<<<<<<<<<<<<<<<<", fill="black", font=mrz_font)
+    draw.text((80, 610), "E123456789CHN9001011M3001012<<<<<<<<<<<<<<02", fill="black", font=mrz_font)
     image.save(path, format="PNG")
 
 
@@ -61,8 +79,13 @@ def _self_test() -> int:
             raise RuntimeError("Mock OCR inference returned no recognized text.")
 
         recognized = " | ".join(item.text for item in items)
+        if "ZHANG" not in recognized.upper():
+            raise RuntimeError(f"Mock OCR did not recognize expected English name: {recognized}")
+        if "张三" not in recognized.replace(" ", ""):
+            raise RuntimeError(f"Mock OCR did not recognize expected Chinese name: {recognized}")
+
         _write_self_test_log(
-            f"OK - mock OCR inference completed, items={len(items)}\n"
+            f"OK - Chinese/English mock OCR inference completed, items={len(items)}\n"
             f"recognized={recognized}\n"
         )
         return 0
