@@ -13,15 +13,16 @@ if not exist bundled_models\PP-OCRv5_mobile_rec (
   exit /b 1
 )
 
-REM Use onedir for Paddle/PaddleOCR reliability. The installer wraps this folder,
-REM so end users still get a normal Windows setup experience.
+REM Use an absolute-import launcher as the PyInstaller entry point. Packaging the
+REM package __main__.py directly breaks relative imports in frozen mode.
+REM Keep onedir for Paddle/PaddleOCR reliability; the installer wraps this folder.
 pyinstaller --noconfirm --clean --windowed --onedir ^
   --name PassportAutoRenamer ^
   --paths src ^
   --add-data "bundled_models;models" ^
   --collect-all paddleocr ^
   --collect-all paddlex ^
-  src\passport_auto_renamer\__main__.py
+  src\launcher.py
 
 if errorlevel 1 exit /b 1
 
