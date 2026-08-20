@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
 from .extract import OcrItem
 
 SUPPORTED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
+DET_MODEL_NAME = "PP-OCRv5_mobile_det"
+REC_MODEL_NAME = "PP-OCRv5_mobile_rec"
+
+
+def _resource_root() -> Path:
+    """Return the PyInstaller resource directory, or the project root in dev mode."""
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    return Path(__file__).resolve().parents[2]
+
+
+def _bundled_model_dir(model_name: str) -> Path | None:
+    path = _resource_root() / "models" / model_name
+    return path if path.is_dir() else None
 
 
 class PaddleOcrEngine:
@@ -14,17 +29,30 @@ class PaddleOcrEngine:
             from paddleocr import PaddleOCR
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError(
-                "未安装 PaddleOCR。请先安装 PaddlePaddle CPU 版和 requirements.txt。"
+                "未安装 PaddleOCR。请使用完整安装包，或先安装 PaddlePaddle CPU 版和 requirements.txt。"
             ) from exc
 
-        # 中文模型同时可识别中文与拉丁字母；打开页面方向分类，关闭不必要的去畸变以降低 CPU 开销。
-        self._ocr = PaddleOCR(
-            lang="ch",
-            device="cpu",
-            use_doc_orientation_classify=True,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-        )
+        det_dir = _bundled_model_dir(DET_MODEL_NAME)
+        rec_dir = _bundled_model_dir(REC_MODEL_NAME)
+
+        kwargs: dict[str, Any] = {
+            "lang": "ch",
+            "device": "cpu",
+            "use_doc_orientation_classify": False,
+            "use_doc_unwarping": False,
+            "use_textline_orientation": False,
+            "text_detection_model_name": DET_MODEL_NAME,
+            "text_recognition_model_name": REC_MODEL_NAME,
+        }
+
+        # 正式安装包把模型放在 models/ 下，并显式传给 PaddleOCR，因此首次启动也不需要联网下载模型。
+        if det_dir and rec_dir:
+            kwargs["text_detection_model_dir"] = str(det_dir)
+            kwargs["text_recognition_model_dir"] = str(rec_dir)
+        elif getattr(sys, "frozen", False):
+            raise RuntimeError("安装包缺少 OCR 模型，请重新下载安装完整版本。")
+
+        self._ocr = PaddleOCR(**kwargs)
 
     @staticmethod
     def _to_box(raw: Any) -> tuple[float, float, float, float] | None:
