@@ -4,11 +4,23 @@ setlocal
 python -m pip install -r requirements-dev.txt
 if errorlevel 1 exit /b 1
 
-REM PaddlePaddle/PaddleOCR 的 PyInstaller 打包兼容性会随版本变化。
-REM 第一版使用 onedir，通常比 onefile 更稳定，也便于放置模型文件。
+if not exist bundled_models\PP-OCRv5_mobile_det (
+  echo Missing bundled detection model. Run: python scripts\prepare_models.py
+  exit /b 1
+)
+if not exist bundled_models\PP-OCRv5_mobile_rec (
+  echo Missing bundled recognition model. Run: python scripts\prepare_models.py
+  exit /b 1
+)
+
+REM Use onedir for Paddle/PaddleOCR reliability. The installer wraps this folder,
+REM so end users still get a normal Windows setup experience.
 pyinstaller --noconfirm --clean --windowed --onedir ^
   --name PassportAutoRenamer ^
   --paths src ^
+  --add-data "bundled_models;models" ^
+  --collect-all paddleocr ^
+  --collect-all paddlex ^
   src\passport_auto_renamer\__main__.py
 
 if errorlevel 1 exit /b 1
