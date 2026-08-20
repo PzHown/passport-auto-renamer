@@ -125,6 +125,7 @@ class ProcessingWindow:
         self.elapsed_var = tk.StringVar(value="耗时：0 秒")
 
         self._build()
+        self.activity_bar.start(12)
         self.root.after(100, self._start_worker)
         self.root.after(100, self._poll_events)
         self.root.after(1000, self._update_elapsed)
@@ -177,7 +178,10 @@ class ProcessingWindow:
         for index, raw in enumerate(self.paths, start=1):
             source = Path(raw)
             self.events.put(("started", index, source))
-            result = processor.process(source)
+            result = processor.process(
+                source,
+                progress=lambda stage, idx=index, src=source: self.events.put(("stage", idx, src, stage)),
+            )
             self.events.put(("result", index, result))
 
         self.events.put(("done",))
@@ -203,10 +207,18 @@ class ProcessingWindow:
             index: int = event[1]
             source: Path = event[2]
             self.current_var.set(f"当前：{source.name}")
-            self.status_var.set(f"正在识别第 {index}/{self.total} 个文件…")
+            self.status_var.set(f"正在处理第 {index}/{self.total} 个文件…")
             self.overall_bar["value"] = index - 1
             self.activity_bar.start(12)
             self._append_log(f"▶ [{index}/{self.total}] {source.name}\n")
+            return
+
+        if kind == "stage":
+            index: int = event[1]
+            source: Path = event[2]
+            stage = str(event[3])
+            self.current_var.set(f"当前：{source.name}")
+            self.status_var.set(f"[{index}/{self.total}] {stage}…")
             return
 
         if kind == "result":
