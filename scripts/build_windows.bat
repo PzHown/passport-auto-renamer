@@ -13,17 +13,10 @@ if not exist bundled_models\PP-OCRv5_mobile_rec (
   exit /b 1
 )
 
-REM Use an absolute-import launcher as the PyInstaller entry point. Packaging the
-REM package __main__.py directly breaks relative imports in frozen mode.
-REM Keep onedir for Paddle/PaddleOCR reliability; the installer wraps this folder.
-pyinstaller --noconfirm --clean --windowed --onedir ^
-  --name PassportAutoRenamer ^
-  --paths src ^
-  --add-data "bundled_models;models" ^
-  --collect-all paddleocr ^
-  --collect-all paddlex ^
-  src\launcher.py
-
+REM Keep onedir for Paddle/PaddleOCR reliability; the Inno Setup installer wraps
+REM the complete directory. The Python packaging helper follows PaddleOCR's
+REM official PyInstaller guidance for Paddle binaries, PaddleX data and metadata.
+python scripts\package_windows.py
 if errorlevel 1 exit /b 1
 
 echo.
