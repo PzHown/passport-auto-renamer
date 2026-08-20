@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - improve-realistic-mock
+      - split-build-artifacts
     paths:
       - '.github/workflows/build-windows.yml'
       - 'src/**'
@@ -123,14 +123,24 @@ jobs:
           if (-not (Test-Path 'installer-output/PassportAutoRenamer-Setup.exe')) {
             throw 'Installer was not created.'
           }
+          if (-not (Test-Path 'installer-output/PassportAutoRenamer-Portable.zip')) {
+            throw 'Portable ZIP was not created.'
+          }
 
-      - name: Upload ready-to-use package
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v7
         with:
-          name: PassportAutoRenamer-ready-to-use
-          path: |
-            installer-output/PassportAutoRenamer-Setup.exe
-            installer-output/PassportAutoRenamer-Portable.zip
+          name: PassportAutoRenamer-Setup
+          path: installer-output/PassportAutoRenamer-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: PassportAutoRenamer-Portable
+          path: installer-output/PassportAutoRenamer-Portable.zip
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
