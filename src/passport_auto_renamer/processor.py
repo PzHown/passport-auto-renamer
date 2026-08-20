@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .config import AppConfig
 from .extract import NameResult, extract_best_name
@@ -10,6 +11,7 @@ from .files import sanitize_filename, transfer_file, unique_destination
 from .ocr import PaddleOcrEngine, SUPPORTED_EXTENSIONS
 
 log = logging.getLogger(__name__)
+ProgressCallback = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -26,7 +28,12 @@ class PassportProcessor:
         self.config = config
         self.engine = engine or PaddleOcrEngine()
 
-    def process(self, source: Path) -> ProcessResult:
+    def process(self, source: Path, progress: ProgressCallback | None = None) -> ProcessResult:
+        def report(stage: str) -> None:
+            if progress:
+                progress(stage)
+
+        report("检查文件")
         source = source.expanduser().resolve()
         if not source.exists() or not source.is_file():
             return ProcessResult(source, None, None, False, "文件不存在")
@@ -34,18 +41,25 @@ class PassportProcessor:
             return ProcessResult(source, None, None, False, "不支持的文件类型")
 
         try:
+            report("OCR 文字识别")
             items = self.engine.recognize(source)
+
+            report("提取护照姓名")
             name_result = extract_best_name(
                 items,
                 prefer_chinese=self.config.prefer_chinese,
                 min_confidence=float(self.config.min_confidence),
             )
             if not name_result:
+                report("写入失败目录")
                 return self._send_to_failed(source, "未可靠识别到姓名")
 
+            report("生成目标文件名")
             stem = self.config.filename_template.format(name=name_result.name)
             stem = sanitize_filename(stem)
             dest = unique_destination(Path(self.config.output_dir), stem, source.suffix.lower())
+
+            report("复制到输出目录" if self.config.mode == "copy" else "移动到输出目录")
             transfer_file(source, dest, self.config.mode)
             return ProcessResult(
                 source, dest, name_result, True,
@@ -53,6 +67,7 @@ class PassportProcessor:
             )
         except Exception as exc:
             log.exception("处理失败: %s", source)
+            report("写入失败目录")
             return self._send_to_failed(source, f"处理异常：{exc}")
 
     def _send_to_failed(self, source: Path, reason: str) -> ProcessResult:
