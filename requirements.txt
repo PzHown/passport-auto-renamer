@@ -1,2 +1,2 @@
-paddleocr>=3.7,<4
+paddleocr==3.7.0
 Pillow>=10,<12
