@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - fix-paddleocr-pyinstaller-deps
+      - disable-mkldnn-runtime
     paths:
       - '.github/workflows/build-windows.yml'
       - 'src/**'
@@ -73,7 +73,7 @@ jobs:
           if (-not (Test-Path $rec)) { throw "Bundled recognition model not found: $rec" }
           Get-Item $exe | Format-List FullName,Length,LastWriteTime
 
-      - name: Smoke-test packaged EXE
+      - name: Smoke-test packaged EXE with generated Chinese-English mock image
         shell: pwsh
         run: |
           $exe = (Resolve-Path 'dist/PassportAutoRenamer/PassportAutoRenamer.exe').Path
@@ -92,7 +92,7 @@ jobs:
           if ($proc.ExitCode -ne 0) {
             throw "Packaged EXE self-test failed with exit code $($proc.ExitCode)."
           }
-          Write-Host 'Packaged EXE self-test passed.'
+          Write-Host 'Packaged EXE Chinese/English OCR self-test passed.'
 
       - name: Install Inno Setup
         shell: pwsh
