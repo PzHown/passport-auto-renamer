@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "passport-auto-renamer"
+version = "0.1.0"
+description = "Offline Windows tool to OCR passport names and rename scanned passport files"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "PzHown"}]
+dependencies = [
+  "paddleocr>=3.7,<4",
+  "Pillow>=10,<12"
+]
+
+[project.scripts]
+passport-auto-renamer = "passport_auto_renamer.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
