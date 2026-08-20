@@ -1,0 +1,66 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - github-actions-build
+    paths:
+      - '.github/workflows/build-windows.yml'
+      - 'src/**'
+      - 'scripts/**'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install PaddlePaddle CPU
+        run: python -m pip install paddlepaddle==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+
+      - name: Install project dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Build Windows application
+        shell: cmd
+        run: scripts\build_windows.bat
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          $exe = 'dist/PassportAutoRenamer/PassportAutoRenamer.exe'
+          if (-not (Test-Path $exe)) {
+            throw "Build output not found: $exe"
+          }
+          Get-Item $exe | Format-List FullName,Length,LastWriteTime
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v7
+        with:
+          name: PassportAutoRenamer-windows-x64
+          path: dist/PassportAutoRenamer/
+          if-no-files-found: error
+          retention-days: 30
