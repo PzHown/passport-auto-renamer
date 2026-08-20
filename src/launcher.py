@@ -6,8 +6,8 @@ import tempfile
 import traceback
 from pathlib import Path
 
-# Set this before importing the application/Paddle stack so oneDNN/MKLDNN is
-# disabled consistently in the packaged Windows executable.
+# Disable PaddleX/Paddle oneDNN (MKLDNN) before importing the application/Paddle
+# stack. This avoids CPU runtime failures seen on some Windows systems.
 os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 
 from passport_auto_renamer.app import main
@@ -27,7 +27,7 @@ def _write_self_test_log(text: str) -> None:
 
 
 def _create_mock_image(path: Path) -> None:
-    """Create a local synthetic image so CI exercises real OCR inference."""
+    """Create a synthetic image in a temporary directory for CI OCR testing."""
     from PIL import Image, ImageDraw, ImageFont
 
     image = Image.new("RGB", (1200, 700), "white")
@@ -44,7 +44,7 @@ def _create_mock_image(path: Path) -> None:
 
 
 def _self_test() -> int:
-    """Smoke-test packaged imports, OCR initialization, and one real mock-image inference."""
+    """Exercise packaged imports, local models, and one real OCR inference."""
     try:
         import paddle  # noqa: F401
         import paddleocr  # noqa: F401
@@ -57,7 +57,14 @@ def _self_test() -> int:
             _create_mock_image(mock_path)
             items = engine.recognize(mock_path)
 
-        _write_self_test_log(f"OK - mock OCR inference completed, items={len(items)}\n")
+        if not items:
+            raise RuntimeError("Mock OCR inference returned no recognized text.")
+
+        recognized = " | ".join(item.text for item in items)
+        _write_self_test_log(
+            f"OK - mock OCR inference completed, items={len(items)}\n"
+            f"recognized={recognized}\n"
+        )
         return 0
     except Exception:
         _write_self_test_log(traceback.format_exc())
