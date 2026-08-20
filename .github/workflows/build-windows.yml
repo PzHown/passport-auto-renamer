@@ -1,15 +1,16 @@
-name: Build Windows EXE
+name: Build Windows Installer
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-      - github-actions-build
+      - installer-bundled-models
     paths:
       - '.github/workflows/build-windows.yml'
       - 'src/**'
       - 'scripts/**'
+      - 'installer/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'tests/**'
@@ -20,14 +21,14 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -44,23 +45,65 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Download models for offline package
+        run: python scripts/prepare_models.py
+
+      - name: Show bundled models
+        shell: pwsh
+        run: Get-ChildItem bundled_models -Recurse | Measure-Object -Property Length -Sum
+
       - name: Build Windows application
         shell: cmd
         run: scripts\build_windows.bat
 
-      - name: Verify executable exists
+      - name: Verify executable and offline models
         shell: pwsh
         run: |
           $exe = 'dist/PassportAutoRenamer/PassportAutoRenamer.exe'
-          if (-not (Test-Path $exe)) {
-            throw "Build output not found: $exe"
-          }
+          $det = 'dist/PassportAutoRenamer/_internal/models/PP-OCRv5_mobile_det'
+          $rec = 'dist/PassportAutoRenamer/_internal/models/PP-OCRv5_mobile_rec'
+          if (-not (Test-Path $exe)) { throw "Build output not found: $exe" }
+          if (-not (Test-Path $det)) { throw "Bundled detection model not found: $det" }
+          if (-not (Test-Path $rec)) { throw "Bundled recognition model not found: $rec" }
           Get-Item $exe | Format-List FullName,Length,LastWriteTime
 
-      - name: Upload Windows package
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup compiler not found" }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc 'installer\passport-auto-renamer.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build portable ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force installer-output | Out-Null
+          Compress-Archive -Path 'dist/PassportAutoRenamer/*' -DestinationPath 'installer-output/PassportAutoRenamer-Portable.zip' -Force
+
+      - name: Verify ready-to-use outputs
+        shell: pwsh
+        run: |
+          Get-ChildItem installer-output | Format-Table Name,Length,LastWriteTime
+          if (-not (Test-Path 'installer-output/PassportAutoRenamer-Setup.exe')) {
+            throw 'Installer was not created.'
+          }
+
+      - name: Upload ready-to-use package
         uses: actions/upload-artifact@v7
         with:
-          name: PassportAutoRenamer-windows-x64
-          path: dist/PassportAutoRenamer/
+          name: PassportAutoRenamer-ready-to-use
+          path: |
+            installer-output/PassportAutoRenamer-Setup.exe
+            installer-output/PassportAutoRenamer-Portable.zip
           if-no-files-found: error
           retention-days: 30
+          compression-level: 0
